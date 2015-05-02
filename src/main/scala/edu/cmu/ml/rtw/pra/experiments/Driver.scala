@@ -12,7 +12,8 @@ import edu.cmu.ml.rtw.pra.graphs.GraphDensifier
 import edu.cmu.ml.rtw.pra.graphs.GraphExplorer
 import edu.cmu.ml.rtw.pra.graphs.PcaDecomposer
 import edu.cmu.ml.rtw.pra.graphs.SimilarityMatrixCreator
-import edu.cmu.ml.rtw.pra.models.PraModel
+import edu.cmu.ml.rtw.pra.models.LogisticRegressionModel
+import edu.cmu.ml.rtw.pra.models.SVMModel
 import edu.cmu.ml.rtw.users.matt.util.Pair
 
 import scala.collection.JavaConverters._
@@ -180,22 +181,27 @@ class Driver(praBase: String, fileUtil: FileUtil = new FileUtil()) {
     // Then we train a model.  It'd be nice here to have all of this parameter stuff pushed
     // down into the PraModel, but PraModel is currently a java class, which doesn't play
     // nicely with json4s.
+    
+    // TODO: PraModel is a scala abstract class now. Check what changes
     val learningParams = praParams \ "learning"
     val learningParamKeys = Seq("l1 weight", "l2 weight", "binarize features")
     JsonHelper.ensureNoExtras(learningParams, "pra parameters -> learning", learningParamKeys)
     val l1Weight = JsonHelper.extractWithDefault(learningParams, "l1 weight", 1.0)
     val l2Weight = JsonHelper.extractWithDefault(learningParams, "l2 weight", 0.05)
     val binarize = JsonHelper.extractWithDefault(learningParams, "binarize features", false)
-    val model = new PraModel(config, l1Weight, l2Weight, binarize)
+    //val model = new LogisticRegressionModel(config, l1Weight, l2Weight, binarize)
+    println(s"\n\nlaunching SVM Model\n\n")
+    val model = new SVMModel(config, l1Weight, l2Weight, binarize)
     val featureNames = generator.getFeatureNames()
-    val weights = model.learnFeatureWeights(trainingMatrix, config.trainingData, featureNames)
-    val finalWeights = generator.removeZeroWeightFeatures(weights)
+    model.trainModel(trainingMatrix, config.trainingData, featureNames)
+    val finalWeights = generator.removeZeroWeightFeatures(model.getParams())
 
     // Then we test the model.
     // TODO(matt): with some feature generators, we could feasibly just generate the training and
     // test matrices at the same time, and because of how GraphChi works, that would save us
     // considerable time.
     val testMatrix = generator.createTestMatrix(config.testingData)
+    println(s"\n\ntesting SVM Model\n\n")
     val scores = model.classifyInstances(testMatrix, finalWeights)
     val javaScores = scores.mapValues(_.map(x => {
       Pair.makePair(Integer.valueOf(x._1), java.lang.Double.valueOf(x._2))

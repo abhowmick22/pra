@@ -42,7 +42,7 @@ class OneSidedFeatureExtractor(val edgeDict: Dictionary, val nodeDict: Dictionar
         if (nodePair.getLeft == source) {
           "SOURCE:" + path + ":" + endNode
         } else if (nodePair.getLeft == target) {
-          "TARGET" + path + ":" + endNode
+          "TARGET:" + path + ":" + endNode
         } else {
           println(s"Source: ${source}")
           println(s"Target: ${target}")
