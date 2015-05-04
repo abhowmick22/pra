@@ -133,11 +133,13 @@ class Driver(praBase: String, fileUtil: FileUtil = new FileUtil()) {
   // class needs to create the object.
   def createFeatureGenerator(praParams: JValue, config: PraConfig) = {
     val featureType = JsonHelper.extractWithDefault(praParams \ "features", "type", "pra")
+    println("feature type being used is " + featureType)
     featureType match {
       case "pra" => new PraFeatureGenerator(praParams \ "features", praBase, config, fileUtil)
       case "subgraphs" => new SubgraphFeatureGenerator(praParams \ "features", praBase, config, fileUtil)
       case other => throw new IllegalStateException("Illegal feature type!")
     }
+    
   }
 
   def learnModels(
@@ -189,19 +191,20 @@ class Driver(praBase: String, fileUtil: FileUtil = new FileUtil()) {
     val l1Weight = JsonHelper.extractWithDefault(learningParams, "l1 weight", 1.0)
     val l2Weight = JsonHelper.extractWithDefault(learningParams, "l2 weight", 0.05)
     val binarize = JsonHelper.extractWithDefault(learningParams, "binarize features", false)
-    //val model = new LogisticRegressionModel(config, l1Weight, l2Weight, binarize)
-    println(s"\n\nlaunching SVM Model\n\n")
-    val model = new SVMModel(config, l1Weight, l2Weight, binarize)
+    val model = new LogisticRegressionModel(config, l1Weight, l2Weight, binarize)
+    //val model = new SVMModel(config, l1Weight, l2Weight, binarize)
     val featureNames = generator.getFeatureNames()
     model.trainModel(trainingMatrix, config.trainingData, featureNames)
-    val finalWeights = generator.removeZeroWeightFeatures(model.getParams())
+    val weights = model.getParams()
+    /* Don't remove zeroWeight features when using an SVM model */
+    val finalWeights = generator.removeZeroWeightFeatures(weights)
+    //val finalWeights = weights
 
     // Then we test the model.
     // TODO(matt): with some feature generators, we could feasibly just generate the training and
     // test matrices at the same time, and because of how GraphChi works, that would save us
     // considerable time.
     val testMatrix = generator.createTestMatrix(config.testingData)
-    println(s"\n\ntesting SVM Model\n\n")
     val scores = model.classifyInstances(testMatrix, finalWeights)
     val javaScores = scores.mapValues(_.map(x => {
       Pair.makePair(Integer.valueOf(x._1), java.lang.Double.valueOf(x._2))
