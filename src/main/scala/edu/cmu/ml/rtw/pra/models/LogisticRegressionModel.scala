@@ -1,33 +1,62 @@
 package edu.cmu.ml.rtw.pra.models
 
 import cc.mallet.pipe.Noop
+<<<<<<< HEAD
 import cc.mallet.pipe.Pipe
 import cc.mallet.types.Alphabet
 import cc.mallet.types.FeatureVector
 import cc.mallet.types.Instance
 import cc.mallet.types.InstanceList
 
+=======
+import cc.mallet.types.Alphabet
+import cc.mallet.types.InstanceList
+
+import org.json4s._
+import org.json4s.native.JsonMethods._
+
+import edu.cmu.ml.rtw.pra.config.JsonHelper
+>>>>>>> b33637150891edc577e99c8a762ffb8de48ac39c
 import edu.cmu.ml.rtw.pra.config.PraConfig
 import edu.cmu.ml.rtw.pra.experiments.Dataset
 import edu.cmu.ml.rtw.pra.features.FeatureMatrix
 import edu.cmu.ml.rtw.pra.features.MatrixRow
+<<<<<<< HEAD
 import edu.cmu.ml.rtw.pra.features.PathType
 import edu.cmu.ml.rtw.pra.features.PathTypeFactory
 import edu.cmu.ml.rtw.users.matt.util.FileUtil
+=======
+>>>>>>> b33637150891edc577e99c8a762ffb8de48ac39c
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
+<<<<<<< HEAD
 class LogisticRegressionModel(config: PraConfig, l1Weight: Double, l2Weight: Double, binarizeFeatures: Boolean)
       extends PraModel{
   
   // initializes to an empty sequence
   var lrWeights: Seq[Double] = Seq()
   
+=======
+class LogisticRegressionModel(config: PraConfig, params: JValue)
+    extends PraModel(config, JsonHelper.extractWithDefault(params, "binarize features", false)) {
+  val allowedParams = Seq("type", "l1 weight", "l2 weight", "binarize features")
+  JsonHelper.ensureNoExtras(params, "pra parameters -> learning", allowedParams)
+
+  val l1Weight = JsonHelper.extractWithDefault(params, "l1 weight", 0.0)
+
+  val l2Weight = JsonHelper.extractWithDefault(params, "l2 weight", 0.0)
+
+  // initializes to an empty sequence
+  var lrWeights: Seq[Double] = Seq()
+
+>>>>>>> b33637150891edc577e99c8a762ffb8de48ac39c
   /**
    * Given a feature matrix and a list of sources and targets that determines whether an
    * instances is positive or negative, train a logistic regression classifier.
    */
+<<<<<<< HEAD
   def trainModel(featureMatrix: FeatureMatrix, dataset: Dataset, featureNames: Seq[String]) = {
     println("Learning feature weights")
     println("Prepping training data")
@@ -54,6 +83,11 @@ class LogisticRegressionModel(config: PraConfig, l1Weight: Double, l2Weight: Dou
       config.outputter.outputFeatureMatrix(s"${base}negative_matrix.tsv", negativeMatrix, featureNames.asJava)
       config.outputter.outputFeatureMatrix(s"${base}unseen_matrix.tsv", unseenMatrix, featureNames.asJava)
     }
+=======
+  override def train(featureMatrix: FeatureMatrix, dataset: Dataset, featureNames: Seq[String]) = {
+    println("Learning feature weights")
+    println("Prepping training data")
+>>>>>>> b33637150891edc577e99c8a762ffb8de48ac39c
 
     println("Creating alphabet")
     // Set up some mallet boiler plate so we can use Burr's ShellClassifier
@@ -61,6 +95,7 @@ class LogisticRegressionModel(config: PraConfig, l1Weight: Double, l2Weight: Dou
     val data = new InstanceList(pipe)
     val alphabet = new Alphabet(featureNames.asJava.toArray())
 
+<<<<<<< HEAD
     println("Converting positive matrix to MALLET instances and adding to the dataset")
     // First convert the positive matrix to a scala object
     positiveMatrix.getRows().asScala
@@ -78,6 +113,10 @@ class LogisticRegressionModel(config: PraConfig, l1Weight: Double, l2Weight: Dou
                         unseenMatrix,
                         data,
                         alphabet)
+=======
+    convertFeatureMatrixToMallet(featureMatrix, dataset, featureNames, data, alphabet)
+
+>>>>>>> b33637150891edc577e99c8a762ffb8de48ac39c
     println("Creating the MalletLogisticRegression object")
     val lr = new MalletLogisticRegression(alphabet)
     if (l2Weight != 0.0) {
@@ -115,6 +154,7 @@ class LogisticRegressionModel(config: PraConfig, l1Weight: Double, l2Weight: Dou
     }
     lrWeights = weights.toSeq
   }
+<<<<<<< HEAD
   
   def getParams(): Seq[Double] = lrWeights
 
@@ -223,10 +263,19 @@ class LogisticRegressionModel(config: PraConfig, l1Weight: Double, l2Weight: Dou
     features.map(f => {
       if (f._2 < weights.size)
         f._1 * weights(f._2)
+=======
+
+  override def classifyMatrixRow(row: MatrixRow) = {
+    val features = row.values.zip(row.pathTypes)
+    features.map(f => {
+      if (f._2 < lrWeights.size)
+        f._1 * lrWeights(f._2)
+>>>>>>> b33637150891edc577e99c8a762ffb8de48ac39c
       else
         0.0
     }).sum
   }
+<<<<<<< HEAD
 
   def matrixRowToInstance(row: MatrixRow, alphabet: Alphabet, positive: Boolean): Instance = {
     val value = if (positive) 1.0 else 0.0
@@ -236,3 +285,6 @@ class LogisticRegressionModel(config: PraConfig, l1Weight: Double, l2Weight: Dou
   }
 
 }
+=======
+}
+>>>>>>> b33637150891edc577e99c8a762ffb8de48ac39c

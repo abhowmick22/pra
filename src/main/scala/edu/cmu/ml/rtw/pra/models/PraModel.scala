@@ -1,37 +1,36 @@
 package edu.cmu.ml.rtw.pra.models
 
-import cc.mallet.pipe.Noop
-import cc.mallet.pipe.Pipe
 import cc.mallet.types.Alphabet
 import cc.mallet.types.FeatureVector
 import cc.mallet.types.Instance
 import cc.mallet.types.InstanceList
 
+import org.json4s._
+import org.json4s.native.JsonMethods._
+
+import edu.cmu.ml.rtw.pra.config.JsonHelper
 import edu.cmu.ml.rtw.pra.config.PraConfig
 import edu.cmu.ml.rtw.pra.experiments.Dataset
 import edu.cmu.ml.rtw.pra.features.FeatureMatrix
 import edu.cmu.ml.rtw.pra.features.MatrixRow
-import edu.cmu.ml.rtw.pra.features.PathType
-import edu.cmu.ml.rtw.pra.features.PathTypeFactory
-import edu.cmu.ml.rtw.users.matt.util.FileUtil
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 /**
+<<<<<<< HEAD
  * Handles learning and classification for a simple model that uses PRA
  * features.
+=======
+ * Handles learning and classification for models that uses PRA features.
+>>>>>>> b33637150891edc577e99c8a762ffb8de48ac39c
  *
- * I thought about spending time to make this class nicer.  But then I decided that what I'm really
- * focusing on is the feature generation side of things, and the point is to use PRA features in
- * different kinds of models.  Spending too much time on making a consistent interface for just a
- * logistic regression model didn't seem to be worth it.  Maybe some day, but not now.  I've
- * thought about doing some experiments where you vary the relation extraction model (like, SVM vs.
- * LR, ranking loss instead of likelihood, different ways to handle negative evidence).  If I ever
- * get to those experiments, I'll clean up this code, but until then, I won't change what isn't
- * broken.
+ * Note that this only deals with _feature indices_, and has no concept of path types or anything
+ * else.  So you need to be sure that the feature indices don't change between training and
+ * classification time, or your model will be all messed up.
  */
 
+<<<<<<< HEAD
 /**
  * ----------- abhishek ----------------------
  * Chose to implement this as an abstract class, as it allows to pass in parameters, unlike a trait.
@@ -73,23 +72,94 @@ abstract class PraModel {
       unseenMatrix: FeatureMatrix,
       data: InstanceList,
       alphabet: Alphabet) 
+=======
+abstract class PraModel(config: PraConfig, binarizeFeatures: Boolean) {
+  /**
+   * Given a feature matrix and a list of sources and targets that determines whether an
+   * instance is positive or negative, train a model.
+   */
+  def train(featureMatrix: FeatureMatrix, dataset: Dataset, featureNames: Seq[String])
+
+  // TODO(matt): this interface could probably be cleaned up a bit.
+  def convertFeatureMatrixToMallet(
+      featureMatrix: FeatureMatrix,
+      dataset: Dataset,
+      featureNames: Seq[String],
+      data: InstanceList,
+      alphabet: Alphabet) {
+    val knownPositives = dataset.getPositiveInstances.asScala.map(x => (x.getLeft.toInt, x.getRight.toInt)).toSet
+    val knownNegatives = dataset.getNegativeInstances.asScala.map(x => (x.getLeft.toInt, x.getRight.toInt)).toSet
+
+    println("Separating into positive, negative, unseen")
+    val grouped = featureMatrix.getRows().asScala.groupBy(row => {
+      val sourceTarget = (row.sourceNode.toInt, row.targetNode.toInt)
+      if (knownPositives.contains(sourceTarget))
+        "positive"
+      else if (knownNegatives.contains(sourceTarget))
+        "negative"
+      else
+        "unseen"
+    })
+    val positiveMatrix = new FeatureMatrix(grouped.getOrElse("positive", Seq()).asJava)
+    val negativeMatrix = new FeatureMatrix(grouped.getOrElse("negative", Seq()).asJava)
+    val unseenMatrix = new FeatureMatrix(grouped.getOrElse("unseen", Seq()).asJava)
+    if (config.outputMatrices && config.outputBase != null) {
+      println("Outputting matrices")
+      val base = config.outputBase
+      config.outputter.outputFeatureMatrix(s"${base}positive_matrix.tsv", positiveMatrix, featureNames.asJava)
+      config.outputter.outputFeatureMatrix(s"${base}negative_matrix.tsv", negativeMatrix, featureNames.asJava)
+      config.outputter.outputFeatureMatrix(s"${base}unseen_matrix.tsv", unseenMatrix, featureNames.asJava)
+    }
+
+    println("Converting positive matrix to MALLET instances and adding to the dataset")
+    // First convert the positive matrix to a scala object
+    positiveMatrix.getRows().asScala
+    // Then, in parallel, map the MatrixRow objects there to MALLET Instance objects
+      .par.map(row => matrixRowToInstance(row, alphabet, true))
+    // Then, sequentially, add them to the data object, and simultaneously count how many columns
+    // there are.
+      .seq.foreach(instance => {
+        data.addThruPipe(instance)
+      })
+
+    println("Adding negative evidence")
+    val numPositiveFeatures = positiveMatrix.getRows().asScala.map(_.columns).sum
+    var numNegativeFeatures = 0
+    for (negativeExample <- negativeMatrix.getRows().asScala) {
+      numNegativeFeatures += negativeExample.columns
+      data.addThruPipe(matrixRowToInstance(negativeExample, alphabet, false))
+    }
+    println("Number of positive features: " + numPositiveFeatures)
+    println("Number of negative features: " + numNegativeFeatures)
+    if (numNegativeFeatures < numPositiveFeatures) {
+      println("Using unseen examples to make up the difference")
+      val difference = numPositiveFeatures - numNegativeFeatures
+      var numUnseenFeatures = 0.0
+      for (unseenExample <- unseenMatrix.getRows().asScala) {
+        numUnseenFeatures += unseenExample.columns
+      }
+      println("Number of unseen features: " + numUnseenFeatures)
+      val unseenWeight = difference / numUnseenFeatures
+      println("Unseen weight: " + unseenWeight)
+      for (unseenExample <- unseenMatrix.getRows().asScala) {
+        val unseenInstance = matrixRowToInstance(unseenExample, alphabet, false)
+        data.addThruPipe(unseenInstance)
+        data.setInstanceWeight(unseenInstance, unseenWeight)
+      }
+    }
+  }
+>>>>>>> b33637150891edc577e99c8a762ffb8de48ac39c
 
   /**
-   * Give a score to every row in the feature matrix, according to the given weights.
-   *
-   * This just applies the logistic function specified by <code>weights</code> to the feature
-   * matrix, returning a score for each row in the matrix.  We convert the matrix into a map,
-   * keyed by source node, to facilitate easy ranking of predictions for each source.  The lists
-   * returned are not sorted yet, however.
+   * Give a score to every row in the feature matrix, according to the learned weights.
    *
    * @param featureMatrix A feature matrix specified as a list of {@link MatrixRow} objects.
-   *     Each row receives a score from the logistic function.
-   * @param weights A list of feature weights, where the indices to the weights correspond to the
-   *     columns of the supplied feature matrix.
+   *     Each row receives a score from the classifier.
    *
    * @return A map from source node to (target node, score) pairs, where the score is computed
-   *     from the features in the feature matrix and the supplied weights.
+   *     from the features in the feature matrix and the learned weights.
    */
+<<<<<<< HEAD
   def classifyInstances(featureMatrix: FeatureMatrix, weights: Seq[Double]): Map[Int, Seq[(Int, Double)]] 
 
   /**
@@ -102,3 +172,37 @@ abstract class PraModel {
 
   def matrixRowToInstance(row: MatrixRow, alphabet: Alphabet, positive: Boolean): Instance 
 }
+=======
+  def classifyInstances(featureMatrix: FeatureMatrix): Map[Int, Seq[(Int, Double)]] = {
+    println("Classifying instances")
+    val sourceScores = new mutable.HashMap[Int, mutable.ArrayBuffer[(Int, Double)]]
+    println("LR Model: size of feature matrix to classify is " + featureMatrix.size())
+    for (row <- featureMatrix.getRows().asScala) {
+      val score = classifyMatrixRow(row)
+      sourceScores.getOrElseUpdate(row.sourceNode, new mutable.ArrayBuffer[(Int, Double)])
+        .append((row.targetNode, score))
+    }
+    sourceScores.mapValues(_.toSeq.sortBy(x => (-x._2, x._1))).toMap
+  }
+
+  protected def classifyMatrixRow(row: MatrixRow): Double
+
+  def matrixRowToInstance(row: MatrixRow, alphabet: Alphabet, positive: Boolean): Instance = {
+    val value = if (positive) 1.0 else 0.0
+    val rowValues = row.values.map(v => if (binarizeFeatures) 1 else v)
+    val feature_vector = new FeatureVector(alphabet, row.pathTypes, rowValues)
+    new Instance(feature_vector, value, row.sourceNode + " " + row.targetNode, null)
+  }
+}
+
+object PraModelCreator {
+  def create(config: PraConfig, params: JValue): PraModel = {
+    val modelType = JsonHelper.extractWithDefault(params, "type", "LogisticRegressionModel")
+    modelType match {
+      case "logistic regression" => new LogisticRegressionModel(config, params)
+      case "svm" => new SVMModel(config, params)
+      case other => throw new IllegalStateException("Unrecognized model type")
+    }
+  }
+}
+>>>>>>> b33637150891edc577e99c8a762ffb8de48ac39c

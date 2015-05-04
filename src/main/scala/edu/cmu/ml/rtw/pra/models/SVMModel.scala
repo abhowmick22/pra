@@ -5,21 +5,34 @@ import cc.mallet.pipe.Pipe
 import cc.mallet.pipe.Target2Label
 import cc.mallet.pipe.SerialPipes
 import cc.mallet.types.Alphabet
+<<<<<<< HEAD
 import cc.mallet.types.FeatureVector
 import cc.mallet.types.Instance
 import cc.mallet.types.InstanceList
 
+=======
+import cc.mallet.types.InstanceList
+
+import org.json4s._
+import org.json4s.native.JsonMethods._
+
+import edu.cmu.ml.rtw.pra.config.JsonHelper
+>>>>>>> b33637150891edc577e99c8a762ffb8de48ac39c
 import edu.cmu.ml.rtw.pra.config.PraConfig
 import edu.cmu.ml.rtw.pra.experiments.Dataset
 import edu.cmu.ml.rtw.pra.features.FeatureMatrix
 import edu.cmu.ml.rtw.pra.features.MatrixRow
+<<<<<<< HEAD
 import edu.cmu.ml.rtw.pra.features.PathType
 import edu.cmu.ml.rtw.pra.features.PathTypeFactory
 import edu.cmu.ml.rtw.users.matt.util.FileUtil
+=======
+>>>>>>> b33637150891edc577e99c8a762ffb8de48ac39c
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
+<<<<<<< HEAD
 import edu.cmu.ml.rtw.pra.mallet_svm.kernel.LinearKernel
 import edu.cmu.ml.rtw.pra.mallet_svm.kernel.TreeKernel
 import edu.cmu.ml.rtw.pra.mallet_svm.kernel.RBFKernel
@@ -36,10 +49,52 @@ class SVMModel(config: PraConfig, l1Weight: Double, l2Weight: Double, binarizeFe
   var alphabet: Alphabet = _
   
   
+=======
+import edu.cmu.ml.rtw.pra.models.mallet_svm.common.SparseVector
+import edu.cmu.ml.rtw.pra.models.mallet_svm.kernel.CustomKernel
+import edu.cmu.ml.rtw.pra.models.mallet_svm.kernel.LinearKernel
+import edu.cmu.ml.rtw.pra.models.mallet_svm.kernel.TreeKernel
+import edu.cmu.ml.rtw.pra.models.mallet_svm.kernel.RBFKernel
+import edu.cmu.ml.rtw.pra.models.mallet_svm.SVMClassifierTrainer
+import edu.cmu.ml.rtw.pra.models.mallet_svm.SVMClassifier
+import edu.cmu.ml.rtw.pra.models.mallet_svm.libsvm.svm_model
+import edu.cmu.ml.rtw.pra.models.mallet_svm.libsvm.svm_node
+import edu.cmu.ml.rtw.pra.models.mallet_svm.libsvm.svm_parameter
+
+class SVMModel(config: PraConfig, params: JValue)
+    extends PraModel(config, JsonHelper.extractWithDefault(params, "binarize features", false)) {
+  val allowedParams = Seq("type", "binarize features", "kernel")
+  JsonHelper.ensureNoExtras(params, "pra parameters -> learning", allowedParams)
+
+  val kernel = createKernel()
+
+  // initializes to an empty sequence
+  var svmClassifier: SVMClassifier = null
+  var alphabet: Alphabet = null
+
+  def createKernel(): CustomKernel = {
+    JsonHelper.extractWithDefault(params, "kernel", "linear") match {
+      case "linear" => new LinearKernel()
+      case "rbf" => {
+        val param = new svm_parameter()
+        param.probability = 0
+        new RBFKernel(param)
+      }
+      case "quadratic" => new CustomKernel() {
+        override def evaluate(x: svm_node, y: svm_node): Double = {
+          val dotProduct = x.data.asInstanceOf[SparseVector] dot y.data.asInstanceOf[SparseVector]
+          dotProduct * dotProduct
+        }
+      }
+    }
+  }
+
+>>>>>>> b33637150891edc577e99c8a762ffb8de48ac39c
   /**
    * Given a feature matrix and a list of sources and targets that determines whether an
    * instances is positive or negative, train an SVM.
    */
+<<<<<<< HEAD
   def trainModel(featureMatrix: FeatureMatrix, dataset: Dataset, featureNames: Seq[String]) = {
     println("Learning feature weights")
     println("Prepping training data")
@@ -77,12 +132,20 @@ class SVMModel(config: PraConfig, l1Weight: Double, l2Weight: Double, binarizeFe
     // set up a target to label pipe for the svm classifier
     // the instanceList gets doubles as labels
     
+=======
+  override def train(featureMatrix: FeatureMatrix, dataset: Dataset, featureNames: Seq[String]) = {
+    println("Learning feature weights")
+    println("Prepping training data")
+
+    println("Creating alphabet")
+>>>>>>> b33637150891edc577e99c8a762ffb8de48ac39c
     val pipes = new mutable.ArrayBuffer[Pipe]
     pipes.+=(new Noop())
     pipes.+=(new Target2Label())
     val pipe = new SerialPipes(pipes.asJava)
     val data = new InstanceList(pipe)
     alphabet = new Alphabet(featureNames.asJava.toArray())
+<<<<<<< HEAD
     
     println("Converting positive matrix to MALLET instances and adding to the dataset")
     // First convert the positive matrix to a scala object
@@ -256,3 +319,24 @@ class SVMModel(config: PraConfig, l1Weight: Double, l2Weight: Double, binarizeFe
   }
 
 }
+=======
+
+    convertFeatureMatrixToMallet(featureMatrix, dataset, featureNames, data, alphabet)
+
+    println("Creating the MalletLibSVM object")
+    val svmTrainer = new SVMClassifierTrainer(kernel)
+
+    // Finally, we train.  All that prep and everything that follows is really just to get
+    // ready for and pass on the output of this one line.
+    svmClassifier = svmTrainer.train(data)
+  }
+
+  /**
+   * Compute score for matrix row according to learned parameters and support vectors
+   * which are stored in the svmClassifier
+   */
+  override def classifyMatrixRow(row: MatrixRow) = {
+    svmClassifier.scoreInstance(matrixRowToInstance(row, alphabet, true))
+  }
+}
+>>>>>>> b33637150891edc577e99c8a762ffb8de48ac39c

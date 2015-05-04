@@ -12,8 +12,12 @@ import edu.cmu.ml.rtw.pra.graphs.GraphDensifier
 import edu.cmu.ml.rtw.pra.graphs.GraphExplorer
 import edu.cmu.ml.rtw.pra.graphs.PcaDecomposer
 import edu.cmu.ml.rtw.pra.graphs.SimilarityMatrixCreator
+<<<<<<< HEAD
 import edu.cmu.ml.rtw.pra.models.LogisticRegressionModel
 import edu.cmu.ml.rtw.pra.models.SVMModel
+=======
+import edu.cmu.ml.rtw.pra.models.PraModelCreator
+>>>>>>> b33637150891edc577e99c8a762ffb8de48ac39c
 import edu.cmu.ml.rtw.users.matt.util.Pair
 
 import scala.collection.JavaConverters._
@@ -28,7 +32,12 @@ class Driver(praBase: String, fileUtil: FileUtil = new FileUtil()) {
   implicit val formats = DefaultFormats
 
   def runPra(_outputBase: String, params: JValue) {
-    val baseKeys = Seq("graph", "split", "relation metadata", "pra parameters")
+    // The "create" key is special - it's not used for anything here, but if there's some object
+    // you want to create with a PRA mode of "no op", and can't or don't want to put the object in
+    // the proper nested place, you can put it under "create", and it will be found by the
+    // "filterField" calls below.  This will work for creating embeddings, similarity matrices, and
+    // (maybe) denser matrices.
+    val baseKeys = Seq("graph", "split", "relation metadata", "pra parameters", "create")
     JsonHelper.ensureNoExtras(params, "base", baseKeys)
     val outputBase = fileUtil.addDirectorySeparatorIfNecessary(_outputBase)
     fileUtil.mkdirOrDie(outputBase)
@@ -183,6 +192,7 @@ class Driver(praBase: String, fileUtil: FileUtil = new FileUtil()) {
     // Then we train a model.  It'd be nice here to have all of this parameter stuff pushed
     // down into the PraModel, but PraModel is currently a java class, which doesn't play
     // nicely with json4s.
+<<<<<<< HEAD
     
     // TODO: PraModel is a scala abstract class now. Check what changes
     val learningParams = praParams \ "learning"
@@ -199,13 +209,20 @@ class Driver(praBase: String, fileUtil: FileUtil = new FileUtil()) {
     /* Don't remove zeroWeight features when using an SVM model */
     //val finalWeights = generator.removeZeroWeightFeatures(weights)
     val finalWeights = weights
+=======
+
+    val learningParams = praParams \ "learning"
+    val model = PraModelCreator.create(config, learningParams)
+    val featureNames = generator.getFeatureNames()
+    model.train(trainingMatrix, config.trainingData, featureNames)
+>>>>>>> b33637150891edc577e99c8a762ffb8de48ac39c
 
     // Then we test the model.
-    // TODO(matt): with some feature generators, we could feasibly just generate the training and
-    // test matrices at the same time, and because of how GraphChi works, that would save us
-    // considerable time.
+    // TODO(matt): if we don't care about removing zero weight features anymore (and it's probably
+    // not worth it, anyway), we could feasibly just generate the training and test matrices at the
+    // same time, and because of how GraphChi works, that would save us considerable time.
     val testMatrix = generator.createTestMatrix(config.testingData)
-    val scores = model.classifyInstances(testMatrix, finalWeights)
+    val scores = model.classifyInstances(testMatrix)
     val javaScores = scores.mapValues(_.map(x => {
       Pair.makePair(Integer.valueOf(x._1), java.lang.Double.valueOf(x._2))
     }).asJava).map(x => (Integer.valueOf(x._1), x._2)).asJava
@@ -308,11 +325,13 @@ class Driver(praBase: String, fileUtil: FileUtil = new FileUtil()) {
     embeddings.filter(_ match {case JString(name) => false; case other => true })
       .par.map(embedding_params => {
         val name = (embedding_params \ "name").extract[String]
+        println(s"Checking for embeddings with name ${name}")
         val embeddingsDir = s"${praBase}embeddings/$name/"
         val paramFile = embeddingsDir + "params.json"
         val graph = praBase + "graphs/" + (embedding_params \ "graph").extract[String] + "/"
         val decomposer = new PcaDecomposer(graph, embeddingsDir)
         if (!fileUtil.fileExists(embeddingsDir)) {
+          println(s"Creating embeddings with name ${name}")
           val dims = (embedding_params \ "dims").extract[Int]
           decomposer.createPcaRelationEmbeddings(dims)
           val out = fileUtil.getFileWriter(paramFile)
