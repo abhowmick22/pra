@@ -191,14 +191,14 @@ class Driver(praBase: String, fileUtil: FileUtil = new FileUtil()) {
     val l1Weight = JsonHelper.extractWithDefault(learningParams, "l1 weight", 1.0)
     val l2Weight = JsonHelper.extractWithDefault(learningParams, "l2 weight", 0.05)
     val binarize = JsonHelper.extractWithDefault(learningParams, "binarize features", false)
-    val model = new LogisticRegressionModel(config, l1Weight, l2Weight, binarize)
-    //val model = new SVMModel(config, l1Weight, l2Weight, binarize)
+    //val model = new LogisticRegressionModel(config, l1Weight, l2Weight, binarize)
+    val model = new SVMModel(config, l1Weight, l2Weight, binarize)
     val featureNames = generator.getFeatureNames()
     model.trainModel(trainingMatrix, config.trainingData, featureNames)
     val weights = model.getParams()
     /* Don't remove zeroWeight features when using an SVM model */
-    val finalWeights = generator.removeZeroWeightFeatures(weights)
-    //val finalWeights = weights
+    //val finalWeights = generator.removeZeroWeightFeatures(weights)
+    val finalWeights = weights
 
     // Then we test the model.
     // TODO(matt): with some feature generators, we could feasibly just generate the training and
